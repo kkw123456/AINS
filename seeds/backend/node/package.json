@@ -1,0 +1,30 @@
+{
+  "name": "webgen-backend-node",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "webgen 组合项目里的 Node 后端（TypeScript + Fastify）",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "ioredis": "^5.4.1",
+    "minio": "^8.0.7",
+    "mysql2": "^3.11.5",
+    "pino": "^9.5.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}

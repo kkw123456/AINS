@@ -1,0 +1,11 @@
+{
+  "kind": "static",
+  "image": "webgen/node:22",
+  "port": 5173,
+  "buildCommand": "pnpm install && pnpm build",
+  "runCommand": "serve-static dist",
+  "artifactDir": "dist",
+  "healthPath": "/",
+  "limits": { "memoryMb": 1024 },
+  "deps": []
+}

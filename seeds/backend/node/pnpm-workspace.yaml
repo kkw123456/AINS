@@ -1,0 +1,8 @@
+# pnpm 11 起，依赖的构建脚本**默认被拒**：碰到带 install 脚本的包（这里是 esbuild，
+# vitest/vite 靠它转译 TS）会直接 `ERR_PNPM_IGNORED_BUILDS`、install 非零退出 ——
+# 而平台的构建脚本是 `set -e` 下的 `pnpm install && pnpm build`，install 一失败整个容器就起不来。
+#
+# pnpm 11 已不再读 package.json 里的 `pnpm` 字段，配置的**新家**就是这个文件。
+# 只放行 esbuild（它确实需要跑自己的安装脚本来落好平台二进制）。
+allowBuilds:
+  esbuild: true

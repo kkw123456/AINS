@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  结构化日志：每条带 **时间戳 + 级别 + 线程 + logger + 消息**，方便容器日志里检索。
+  不引任何新依赖（不引 logstash-encoder 之类的 JSON 编码器）——
+  本模板依赖固定为 pom.xml 里那四个 starter。
+
+  格式里去掉 %n 前的颜色、用 ISO 时间 + 毫秒，grep / 日志平台按行切都能用。
+-->
+<configuration>
+
+  <property name="LOG_PATTERN"
+            value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{40} - %msg%n"/>
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>${LOG_PATTERN}</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+
+</configuration>

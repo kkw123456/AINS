@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+  <!--
+    本地仓库放到 /opt/m2（而不是 ~/.m2/repository）：
+    镜像构建期以 root 预热，运行时以 sandbox 用户跑，放一个中立位置最好 chown。
+
+    镜像源走阿里云：本机 registry.npmjs.org 被中间人劫持过（自签证书），
+    Maven Central 走的是同一条国际出口，没必要赌它没事。
+  -->
+  <localRepository>/opt/m2</localRepository>
+
+  <mirrors>
+    <mirror>
+      <id>aliyun</id>
+      <name>Aliyun Public</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>

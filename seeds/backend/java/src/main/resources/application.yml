@@ -1,0 +1,31 @@
+# 端口听 **APP_PORT**（容器内的内部端口），不是 PORT —— 对外那个口归 nginx（见工作区根的 nginx.conf）
+server:
+  port: ${APP_PORT:3001}
+  # 优雅停机：收到 SIGTERM 后不再接新请求，等在途请求收尾再退出（容器重建 / 发布时不硬切）
+  shutdown: graceful
+
+spring:
+  application:
+    name: app
+  lifecycle:
+    # 和上面的 graceful 配套：等多久还没收尾就强退
+    timeout-per-shutdown-phase: 10s
+
+# ⚠️ 别在这里配 static 资源：前端产物由容器里的 nginx 伺服，
+# Spring 再伺一份会让"哪一份在生效"变得说不清。
+management:
+  endpoints:
+    web:
+      exposure:
+        # 只开这两个：health 给探活、info 给人看。别 `include: "*"` —— 那是生产隐患。
+        include: health,info
+
+webgen:
+  # 数据目录：平台选了「数据层」才注入 WEBGEN_DATA_DIR。
+  # 有值 → 文件存储（storage="file"）；空 → 内存态（storage="memory"）。
+  # 交给 config/AppProperties 绑定，业务代码不直接读环境变量。
+  data-dir: ${WEBGEN_DATA_DIR:}
+
+logging:
+  level:
+    root: INFO

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>webgen · 纯静态页</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      main { max-width: 640px; padding: 2rem; text-align: center; }
+      h1 { margin: 0 0 .25rem; font-size: 1.5rem; color: #7dd3fc; }
+      p { color: #94a3b8; line-height: 1.7; }
+      code { color: #7dd3fc; }
+      #hello, #visits { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+      #hello { color: #7dd3fc; }
+      #visits { color: #a3e635; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>纯静态页</h1>
+      <p>
+        这一页是**静态 HTML/CSS**，由容器里的 nginx 直接伺服，<strong>没有任何构建步骤</strong>。<br />
+        nginx 把 <code>/api/*</code> 转给后端进程 —— 下面这两行是页面向后端发请求拿到的：
+      </p>
+      <p id="hello">加载中…</p>
+      <p id="visits">加载中…</p>
+      <p style="font-size:.75rem;color:#64748b">（页面本身是静态的；这两行证明前端 ↔ 后端的链路通了）</p>
+    </main>
+    <script>
+      // 相对路径：/api/* 由 nginx 转给后端（对外只有一个口）
+      fetch('/api/hello')
+        .then((r) => r.json())
+        .then((d) => { document.getElementById('hello').textContent = 'GET /api/hello → ' + d.message })
+        .catch((e) => { document.getElementById('hello').textContent = '后端不可达：' + e })
+      fetch('/api/visits')
+        .then((r) => r.json())
+        .then((d) => { document.getElementById('visits').textContent = 'GET /api/visits → ' + JSON.stringify(d) })
+        .catch((e) => { document.getElementById('visits').textContent = '后端不可达：' + e })
+    </script>
+  </body>
+</html>

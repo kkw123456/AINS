@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic-settings
+alembic
+pymysql
+redis
+minio
+
+# 运行期不 pip install：镜像 webgen/python:3.12 已预热上述依赖。
+# 此文件仅供人阅读 / 重建镜像时参考。

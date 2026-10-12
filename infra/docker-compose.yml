@@ -1,0 +1,161 @@
+name: webgen
+
+# 沙箱容器、Traefik、MySQL 共用一个网络：
+#   - Traefik 靠它拿到沙箱 IP 并做反代
+#   - 沙箱靠它访问依赖服务（S4 起）
+# 这个网络名必须与 .env 的 WEBGEN_DOCKER_NETWORK 一致。
+networks:
+  webgen-net:
+    name: webgen-net
+
+services:
+  # 边缘：按 Host 把 p-<id>.<域名> 路由到对应沙箱容器。
+  # 用 docker provider —— 容器带 label 即生效，容器一删路由即回收（S0 验收 ⑤）。
+  # 单机够用；分布式要换成动态配置 provider（redis/etcd），见 §1.1。
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    environment:
+      # ⚠️ 必配。Docker 29 的 daemon 最低只接受 API 1.44，而 Traefik 内嵌的
+      # docker 客户端默认用 1.24 —— 不指定就会一直报
+      # "client version 1.24 is too old. Minimum supported API version is 1.44"，
+      # provider 挂在重试里，**路由表永远是空的**（症状：预览地址返回 Traefik 的 404）。
+      # 值取 `docker version --format '{{.Server.APIVersion}}'` 的输出。
+      - DOCKER_API_VERSION=1.52
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=webgen-net
+      - --entrypoints.web.address=:80
+      - --api.dashboard=false
+      - --log.level=INFO
+      - --accesslog=false
+    ports:
+      # 宿主机只开这一个口（决策 3）
+      - "${PREVIEW_PORT:-8088}:80"
+    volumes:
+      # 只读挂载：Traefik 靠它发现容器 label。
+      # ⚠️ 这仍然是 docker socket，等于把宿主 root 给了这个容器——
+      # 所以它是**基础设施组件**，与"沙箱"是完全不同的信任级别。
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - webgen-net
+
+  # 共享静态伺服：已发布的静态站 + 静态项目的预览都从这里出（§4 决策 10）。
+  # 配置见 infra/sites/nginx.conf.template，理由写在那个文件头上。
+  sites:
+    image: nginx:alpine
+    restart: unless-stopped
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-site.localhost}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-localhost}
+    volumes:
+      # 官方镜像会把 templates/*.template 经 envsubst 落到 conf.d/
+      - ./sites/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # ⚠️ 只读挂载。nginx 以 root 起主进程能读到这些目录（属主是 root；
+      # 换成非 root 的伺服进程会被 /root 的 0700 挡在门外）。
+      - ${WEBGEN_DATA_DIR:-/root/webgen-data}/sites:/data/sites:ro
+      - ${WEBGEN_DATA_DIR:-/root/webgen-data}/previews:/data/previews:ro
+    networks:
+      - webgen-net
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: webgen-net
+      # ⚠️⚠️ priority 必须是 1，这不是调优而是正确性：
+      # Traefik 默认把**规则字符串的长度**当优先级，而下面这两条 HostRegexp
+      # 恰好比服务型容器的 `Host(\`p-xxx.localhost\`)` 更长 —— 不显式压下去，
+      # 所有请求都会被这里抢走，症状是「服务型预览打不开、打开的是静态站的 404」。
+      # 压到 1 之后，任何精确 Host 规则都会赢过它。
+      traefik.http.routers.sites-pub.rule: "HostRegexp(`^[a-z0-9-]+\\.${SITE_DOMAIN:-site.localhost}$$`)"
+      traefik.http.routers.sites-pub.priority: "1"
+      traefik.http.routers.sites-pub.entrypoints: web
+      traefik.http.routers.sites-pub.service: sites
+      traefik.http.routers.sites-prev.rule: "HostRegexp(`^p-[a-z0-9]+\\.${PREVIEW_DOMAIN:-localhost}$$`)"
+      traefik.http.routers.sites-prev.priority: "1"
+      traefik.http.routers.sites-prev.entrypoints: web
+      traefik.http.routers.sites-prev.service: sites
+      traefik.http.services.sites.loadbalancer.server.port: "8080"
+
+  # 平台元数据库。所有项目共用一个实例，每项目一个 database + 独立 user（§6 / §7.1）。
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    command:
+      # 字符集必须显式指定，别赌默认值（§7.1）
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # 连接是线程不是进程，项目多了要够用（§7.1）
+      - --max-connections=500
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-webgen_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-webgen}
+      MYSQL_USER: ${MYSQL_USER:-webgen}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-webgen_pass}
+    ports:
+      # ⚠️ 默认 13306 而不是 3306：本机 Windows 上已经有一个 MySQL 占着 3306，
+      # 而 WSL 开了 networkingMode=mirrored（与 Windows 共享端口空间），
+      # 所以 WSL 里也绑不上 3306。别去动用户已有的服务，换个口即可。
+      - "127.0.0.1:${MYSQL_PORT:-13306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次初始化时给平台账号供给权限（S4，每项目一库一账号需要全局 CREATE/DROP/GRANT）。
+      # ⚠️ 只在数据卷为空时执行；已有卷请跑 scripts/grant-mysql.sh。
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD:-webgen_root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - webgen-net
+
+  # 共享缓存（S4）。**按 key 前缀隔离**（每个项目的 key 前置 `<projectId>:`）——
+  # 同一个实例、同一个 DB，没有 ACL，所以隔离是**约定、不是强制**（§10 记了这条）。
+  # ⚠️ 队列**仍然放 MySQL**（§14-C2 的 `SKIP LOCKED` 前提没变）；Redis 只做缓存/会话。
+  # 不对外开端口：只有 webgen-net 上的沙箱按服务名 `redis` 访问。
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      # 不淘汰：缓存/会话被静默淘汰比"写失败"更难查。宁可写满报错。
+      - --maxmemory-policy
+      - noeviction
+      - --requirepass
+      - ${REDIS_PASSWORD:-webgen_redis}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-webgen_redis}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - webgen-net
+
+  # 对象存储（S4「文件系统」）。共享实例，**每项目一个 bucket**（`p_<id>`）。
+  # ⚠️ 凭证是**平台共享**的（不每项目建 access key），所以隔离是**约定**（bucket 命名 +
+  #    应用只写自己的），不是强制 —— 和 Redis 的前缀隔离同一档，§10 记了。
+  # 沙箱按服务名 `minio:9000` 访问；控制台 9001 不对宿主开放。
+  minio:
+    # ⚠️ 镜像名可用 .env 的 MINIO_IMAGE 覆盖：MinIO 上游已删掉 `latest` tag，
+    #    而且本机镜像站对 minio/bitnami 都 403 —— 你拉到哪个 release tag 就填哪个。
+    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-webgen_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-webgen_minio_pass}
+    volumes:
+      - minio-data:/data
+    networks:
+      - webgen-net
+
+volumes:
+  mysql-data:
+  redis-data:
+  minio-data:

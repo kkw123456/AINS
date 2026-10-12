@@ -1,0 +1,13 @@
+packages:
+  - 'packages/*'
+  - 'services/*'
+  - 'apps/*'
+allowBuilds:
+  # esbuild 必须有：tsx 靠它把 TS 直接跑起来，缺了它服务根本起不来
+  esbuild: true
+  # 下面三个来自 dockerode 的 SSH 传输依赖；我们走 unix socket，用不到
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
+minimumReleaseAgeExclude:
+  - lucide-react@1.54.0

@@ -1,0 +1,43 @@
+/* 配色和种子里的其他骨架保持一致 */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+main {
+  text-align: center;
+  padding: 24px;
+}
+h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 600;
+}
+p {
+  margin: 0 0 6px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+.ok {
+  color: #86efac;
+}
+.err {
+  color: #fca5a5;
+}
+.hint {
+  margin-top: 12px;
+}
+code {
+  background: #1e293b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #7dd3fc;
+  font-size: 13px;
+}

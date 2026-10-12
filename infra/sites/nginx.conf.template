@@ -1,0 +1,63 @@
+# 共享静态伺服。**不是每站一个容器**——DESIGN 决策 10 说静态站运行侧 0 个「专属」容器，
+# §4 的常驻容器数表也是按这个写的（静态：没人在用 0 / 看预览 0 / 编辑 1）。
+#
+# 为什么是 nginx 而不是自己写一个 node 静态服务器：
+#   - Traefik 是纯反代，**不伺服静态文件**（§4 明说了），所以必须有个东西来伺服；
+#   - 按 Host 映射子目录（server_name 的正则命名捕获 + root $slug）是 nginx 的原生能力，
+#     自己写要维护一套 Host 解析 + MIME + 路径 jail；
+#   - 官方镜像现成，不用进 scripts/build-images.sh，也就没有「先 pnpm images 还是先 pnpm up」的顺序问题。
+#
+# ⚠️ 这个文件被官方镜像的 templates 机制 envsubst 过：镜像会把 /etc/nginx/templates/*.template
+# 里的 ${VAR} 替换掉再写到 conf.d。所以这里写的是 shell 变量语法的占位符，**不是** nginx 变量。
+
+# 兜底：Host 不匹配任何规则时明确 404，别让它落到第一个 server 块去用空 slug 拼出一个怪路径
+server {
+  listen 8080 default_server;
+  server_name _;
+  return 404;
+}
+
+# 已发布的静态站：<slug>.<SITE_DOMAIN> → sites/<slug>/current
+#
+# ⚠️ `SITE_DOMAIN` 是**完整后缀**（默认就是 `site.localhost`），里面已经含 `site` 这一段。
+# 别再写 `.site.${SITE_DOMAIN}` —— 那会拼成 `demo.site.site.localhost`，
+# 症状是发布站一律 404，而错误日志里什么都没有（因为只是没匹配上 server_name）。
+server {
+  listen 8080;
+  server_name ~^(?<slug>[a-z0-9-]+)\.${SITE_DOMAIN}$;
+  root /data/sites/$slug/current;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ @spa;
+  }
+
+  # SPA 兜底：只对**没有扩展名**的路径回 index.html（/settings 这种前端路由）。
+  # 带扩展名的缺文件必须老老实实 404 —— 兜成 HTML 会变成
+  # "Unexpected token '<'" 这种极难定位的报错。这正是自己写服务器时容易漏掉的一条。
+  location @spa {
+    if ($uri ~ "\.[a-zA-Z0-9]+$") { return 404; }
+    rewrite ^ /index.html break;
+  }
+}
+
+# 静态项目的**预览**：p-<id>.<域名> → previews/<id>/current
+# 服务型项目的 p-<id> 由它自己的预览容器接管（精确 Host 规则优先级更高，见 compose 里的 priority=1）
+#
+# ⚠️ 捕获名不能叫 `pid` —— nginx 自己有个内置变量 `$pid`（worker 进程号），
+# 撞名会在启动时报 `the duplicate "pid" variable`，整个容器起不来。
+server {
+  listen 8080;
+  server_name ~^p-(?<proj>[a-z0-9]+)\.${PREVIEW_DOMAIN}$;
+  root /data/previews/$proj/current;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ @spa;
+  }
+
+  location @spa {
+    if ($uri ~ "\.[a-zA-Z0-9]+$") { return 404; }
+    rewrite ^ /index.html break;
+  }
+}

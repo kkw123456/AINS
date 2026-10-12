@@ -1,0 +1,25 @@
+{
+  "name": "webgen",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "up": "docker compose -f infra/docker-compose.yml up -d",
+    "down": "docker compose -f infra/docker-compose.yml down",
+    "ps": "docker compose -f infra/docker-compose.yml ps",
+    "images": "bash scripts/build-images.sh",
+    "dev:executor": "pnpm --filter @webgen/executor dev",
+    "dev:orchestrator": "pnpm --filter @webgen/orchestrator dev",
+    "dev:web": "pnpm --filter @webgen/web dev",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}

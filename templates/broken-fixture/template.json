@@ -1,0 +1,9 @@
+{
+  "kind": "service",
+  "image": "webgen/node:22",
+  "port": 8080,
+  "runCommand": "node server.mjs",
+  "healthPath": "/",
+  "limits": { "memoryMb": 512 },
+  "deps": []
+}

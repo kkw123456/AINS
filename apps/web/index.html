@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 内联 favicon：不写的话浏览器会去要 /favicon.ico，控制台里多一条无名 404 -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f172a'/><text x='16' y='23' font-family='system-ui' font-size='17' fill='%237dd3fc' text-anchor='middle'>w</text></svg>"
+    />
+    <title>webgen</title>
+    <script>
+      // 在首屏绘制**之前**把主题类挂上。
+      // 不这么做的话：body 默认是亮色（styles.css 的 :root），React 挂载后才加 .dark，
+      // 深色用户每次刷新都会看到一帧白屏闪一下 —— 这个内联脚本是唯一能赶在
+      // 模块脚本执行前跑的机会（它必须留在 index.html 里，不能挪进 src/）。
+      // 默认深色，和 ThemeProvider 里的默认值保持一致。
+      ;(function () {
+        try {
+          var t = localStorage.getItem('webgen.theme') || 'dark'
+          var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', dark)
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+        } catch (e) {
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
